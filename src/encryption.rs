@@ -236,7 +236,7 @@ fn get_layer_key_opts(
     .cloned()
 }
 
-fn decrypt_layer_key_opts_data(dc: &DecryptConfig, desc: &OciDescriptor) -> Result<Vec<u8>> {
+pub fn decrypt_layer_key_opts_data(dc: &DecryptConfig, desc: &OciDescriptor) -> Result<Vec<u8>> {
     let mut priv_key_given = false;
 
     for (annotations_id, scheme) in KEY_WRAPPERS_ANNOTATIONS.iter() {
@@ -310,16 +310,12 @@ pub fn encrypt_layer<'a, R: 'a + Read>(
     }
 }
 
-// decrypt_layer decrypts a layer trying one keywrapper after the other to see whether it
-// can apply the provided private key
-// If unwrap_only is set we will only try to decrypt the layer encryption key and return
-pub fn decrypt_layer<R: Read>(
-    dc: &DecryptConfig,
+pub fn decrypt_layer_with_priv_opts<R: Read>(
     layer_reader: R,
     desc: &OciDescriptor,
     unwrap_only: bool,
+    priv_opts_data: &Vec<u8>,
 ) -> Result<(Option<impl Read>, String)> {
-    let priv_opts_data = decrypt_layer_key_opts_data(dc, desc)?;
     let pub_opts_data = get_layer_pub_opts(desc)?;
 
     if unwrap_only {
@@ -339,6 +335,19 @@ pub fn decrypt_layer<R: Read>(
     lbch.decrypt(layer_reader, &mut opts)?;
 
     Ok((Some(lbch), opts.private.digest))
+}
+
+// decrypt_layer decrypts a layer trying one keywrapper after the other to see whether it
+// can apply the provided private key
+// If unwrap_only is set we will only try to decrypt the layer encryption key and return
+pub fn decrypt_layer<R: Read>(
+    dc: &DecryptConfig,
+    layer_reader: R,
+    desc: &OciDescriptor,
+    unwrap_only: bool,
+) -> Result<(Option<impl Read>, String)> {
+    let priv_opts_data = decrypt_layer_key_opts_data(dc, desc)?;
+    decrypt_layer_with_priv_opts(layer_reader, desc, unwrap_only, &priv_opts_data)
 }
 
 #[cfg(test)]
